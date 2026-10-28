@@ -24,6 +24,9 @@ THIRD-PARTY COMPONENTS (not included in this repository; obtain separately):
   - ntoseye                         (its own license)  github.com/dmaivel/ntoseye
   - WinDbg / kd                     Microsoft EULA — NOT redistributed here
 
-This repository contains only the orchestrator source (Python / PowerShell).
-It does not bundle, and must not be used to redistribute, the binaries or source
-of the third-party components above. Install/build those from their own sources.
+NOTE: this is a PRIVATE working snapshot. Besides the orchestrator source
+(Python / PowerShell), it may include third-party build artifacts and extracted
+trees (e.g. WinDbg, hvlib, MemProcFS/LeechCore binaries) kept here for personal
+use only. These remain under their own licenses above and MUST NOT be
+redistributed publicly from this repository. The Microsoft WinDbg material in
+particular is proprietary and is included only as a local, private copy.

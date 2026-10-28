@@ -1,17 +1,12 @@
-# généré / spécifique machine
-config.json
+# régénérable
 __pycache__/
 *.pyc
 
-# binaires tiers / extraits — NE PAS redistribuer (copyright/licences)
-windbg64/
-plugin_build/
-*.dll
-*.exe
-*.sys
-*.lib
+# jonction vers un arbre externe (LeechCore est un dépôt séparé)
+plugin_build/LeechCore/
+plugin_build/LeechCore
 
-# images mémoire
+# images mémoire volumineuses
 *.raw
 *.dmp
 *.mem
