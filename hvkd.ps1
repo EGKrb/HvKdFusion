@@ -1,4 +1,4 @@
-<#
+﻿<#
     hvkd.ps1 - lanceur HvKdFusion avec élévation UAC automatique.
 
     Exécute hvkdfusion.py en administrateur (requis pour toute opération
@@ -11,15 +11,16 @@
         .\hvkd.ps1 debug --vm 0 --engine windbg
         .\hvkd.ps1 dump --vm 0 --type linear --out guest.raw
 
-    La commande 'setup' n'a pas besoin d'admin ; lance-la directement :
-        python hvkdfusion.py setup
+    Sans besoin d'admin (exécutées directement, sans UAC) : setup, config,
+    check, et l'analyse d'un fichier existant (wineye --dump, ntoseye --dump).
+
+    HVKD_KEEP_OPEN=1 (posé par la commande x64dbg 'hvkd') garde la fenêtre
+    ouverte à la fin pour lire la sortie.
 #>
 
-[CmdletBinding()]
-param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]] $Rest
-)
+# Pas de param() : tous les arguments passent tels quels à hvkdfusion.py, y
+# compris ceux qui ressemblent à des paramètres PowerShell (wineye -c "ps;lm").
+$Rest = @($args)
 
 $ErrorActionPreference = 'Stop'
 
@@ -71,15 +72,23 @@ Toute sous-commande de hvkdfusion.py passe en direct. 'setup' n'a pas besoin d'a
     exit 0
 }
 
-# L'analyse d'un dump ntoseye DÉJÀ existant n'a pas besoin de l'admin : on
-# l'exécute directement, sans prompt UAC. (La génération d'un crash dump --vm,
-# elle, passe par la branche élevée plus bas.)
-$isNtoseyeDump = ($Rest[0] -eq 'ntoseye') -and ($Rest -contains '--dump') -and -not ($Rest -contains '--vm')
+# Actions sans besoin d'admin : on les exécute directement, sans prompt UAC.
+# L'analyse d'un dump DÉJÀ existant (ntoseye/wineye --dump) en fait partie ; la
+# génération d'un dump depuis une VM (--vm, --from-vm, --live) passe par la
+# branche élevée plus bas.
+$needsVm = ($Rest -contains '--vm') -or ($Rest -contains '--from-vm') -or ($Rest -contains '--live')
+$isFileAnalysis = ($Rest[0] -in @('ntoseye', 'wineye')) -and ($Rest -contains '--dump') -and -not $needsVm
+$noAdmin = ($Rest[0] -in @('setup', 'config', 'check')) -or $isFileAnalysis
 
-if ((Test-Admin) -or $isNtoseyeDump) {
+if ((Test-Admin) -or $noAdmin) {
     # Déjà administrateur (ou action sans besoin d'admin) : exécuter directement.
     & $py $script @Rest
-    exit $LASTEXITCODE
+    $code = $LASTEXITCODE
+    if ($env:HVKD_KEEP_OPEN) {
+        Write-Host ''
+        Read-Host 'Terminé. Entree pour fermer' | Out-Null
+    }
+    exit $code
 }
 
 # Pas administrateur : relancer une fenêtre élevée (prompt UAC).

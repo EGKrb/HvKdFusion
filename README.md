@@ -57,6 +57,13 @@ indispensable pour toute opération mémoire. Sans argument, il ouvre le **menu 
 Déjà dans une console admin ? Il exécute directement, sans nouvelle fenêtre.
 `setup` n'a pas besoin d'admin : `python hvkdfusion.py setup`.
 
+Sans prompt UAC, même hors console admin : `setup`, `config`, `check`, et
+l'analyse d'un fichier existant (`wineye --dump`, `ntoseye --dump`, sans
+`--vm`/`--from-vm`/`--live`). Les arguments qui ressemblent à des paramètres
+PowerShell passent tels quels (`.\hvkd.ps1 wineye --dump x.raw -c "ps;lm"`).
+Avec `HVKD_KEEP_OPEN=1` dans l'environnement, la fenêtre reste ouverte à la fin
+(c'est ce que fait la commande `hvkd` du fork x64dbg EGKrb).
+
 ## Vérifier la préparation
 
 ```powershell

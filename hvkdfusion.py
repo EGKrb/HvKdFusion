@@ -44,14 +44,16 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 CONFIG_PATH = HERE / "config.json"
 
-# Default locations of the source trees on this machine. setup can override.
+# Default locations of the source trees (unzipped GitHub archives in the user's
+# Downloads folder). setup can override every one of them.
 # master2 is the fuller LiveCloudKd tree whose LiveCloudKd.exe actually builds.
-DEFAULT_LIVECLOUDKD = Path(r"C:\Users\Elio\Downloads\LiveCloudKd-master2\LiveCloudKd-master")
-DEFAULT_WINDBG = Path(r"C:\Users\Elio\Downloads\windbg-master\windbg-master")
-DEFAULT_NTOSEYE = Path(r"C:\Users\Elio\Downloads\ntoseye-master\ntoseye-master")
-DEFAULT_MEMPROCFS = Path(r"C:\Users\Elio\Downloads\MemProcFS-master\MemProcFS-master")
-DEFAULT_DOKANY = Path(r"C:\Users\Elio\Downloads\dokany-master\dokany-master")
-DEFAULT_LEECHCORE = Path(r"C:\Users\Elio\Downloads\LeechCore-master\LeechCore-master")
+DOWNLOADS = Path.home() / "Downloads"
+DEFAULT_LIVECLOUDKD = DOWNLOADS / "LiveCloudKd-master2" / "LiveCloudKd-master"
+DEFAULT_WINDBG = DOWNLOADS / "windbg-master" / "windbg-master"
+DEFAULT_NTOSEYE = DOWNLOADS / "ntoseye-master" / "ntoseye-master"
+DEFAULT_MEMPROCFS = DOWNLOADS / "MemProcFS-master" / "MemProcFS-master"
+DEFAULT_DOKANY = DOWNLOADS / "dokany-master" / "dokany-master"
+DEFAULT_LEECHCORE = DOWNLOADS / "LeechCore-master" / "LeechCore-master"
 
 # LiveCloudKd.exe action codes (see its README /a option).
 ACTION_LIVE_KD = 0
@@ -262,6 +264,14 @@ def load_hvlib(cfg: dict):
         die("hvlib.dll not resolved. Run setup.")
     # hvlib.dll loads its sibling dependencies from its own folder.
     os.add_dll_directory(str(Path(hvlib_dll).parent))
+    # hvlib.hvlib(dll) also insists on finding hvlib.py next to the DLL
+    # (LiveCloudKd ships them in different folders): stage a copy there.
+    staged_py = Path(hvlib_dll).parent / "hvlib.py"
+    if not staged_py.exists():
+        try:
+            shutil.copy2(hvlib_py, staged_py)
+        except OSError as e:
+            die(f"cannot copy hvlib.py next to hvlib.dll ({staged_py}): {e}")
     spec = importlib.util.spec_from_file_location("hvlib", hvlib_py)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -276,7 +286,11 @@ def engine_enum(cfg: dict):
     ops.ReadMethod = int(cfg["read_method"])
     ops.WriteMethod = int(cfg["write_method"])
     ops.LogLevel = 1
-    if not engine.EnumPartitions(ops):
+    try:
+        ok = engine.EnumPartitions(ops)
+    except (OSError, ValueError):   # hvlib.py dereferences a NULL array without admin
+        ok = False
+    if not ok:
         die("EnumPartitions failed (need admin + running Hyper-V VM?).")
     vms = list(enumerate(engine.ArrayOfNames))
     return mod, engine, vms
@@ -1085,6 +1099,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    # argparse.REMAINDER does not capture a remainder that starts with an
+    # option ("wineye --dump x.raw" fails): hand everything after "wineye"
+    # over to wineye's own parser unchanged.
+    if argv[:1] == ["wineye"]:
+        cmd_wineye(argparse.Namespace(args=argv[1:]))
+        return
     args = build_parser().parse_args(argv)
     args.func(args)
 
