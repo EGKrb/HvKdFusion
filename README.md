@@ -186,6 +186,30 @@ transport de debug : **WinDbg/kd** via `hvkdfusion.py debug` (EXDI/live-kd), qui
 donne le contrôle d'exécution complet. wineye couvre donc le cœur passif + le
 contrôle d'état/registres ; le run-control fin reste le domaine de WinDbg.
 
+### Modes serveur (`--serve`)
+
+Les modes que ntoseye expose — ici **natifs Windows, sans WSL**, en **stdlib pure**
+(aucun pip), réutilisant la classe `Vmm`. Ils tournent **à la place** du REPL, sur
+la même cible (`--dump` / `--live` / `--device`), et sont en **lecture seule
+mémoire passive** (registres uniquement sur VM live, avec `--vm N`) ; pas de
+breakpoints/pas-à-pas — pour le run-control, voir `hvkdfusion.py debug`.
+
+| Mode | Commande | Usage |
+|---|---|---|
+| **MCP** | `wineye --dump d.raw --serve mcp` | Serveur MCP (JSON-RPC 2.0 sur stdio) pour un client agent/IA. Outils : `list_processes`, `process_info`, `list_modules`, `list_handles`, `list_vads`, `read_memory`, `resolve_symbol`, `registers`. |
+| **gdbserver** | `wineye --dump d.raw --serve gdb [--listen 127.0.0.1:2159]` | GDB Remote Serial Protocol (TCP). Depuis GDB : `target remote 127.0.0.1:2159`, puis lecture mémoire (`x/16xg <addr>`) et, sur VM live, `info registers`. |
+| **DAP** | `wineye --dump d.raw --serve dap [--listen 127.0.0.1:4711]` | Debug Adapter Protocol (stdio, ou TCP avec `--listen`) pour un IDE : `modules`, `readMemory`, `evaluate module!symbole`. |
+
+Exemple — déclarer wineye comme serveur MCP (config d'un client MCP) :
+
+```json
+{ "command": "python",
+  "args": ["hvkdfusion.py", "wineye", "--dump", "C:\\dumps\\vm0.raw", "--serve", "mcp"] }
+```
+
+En mode serveur, la bannière de démarrage part sur **stderr** : stdout ne porte
+que le flux du protocole.
+
 ## Analyse avec ntoseye (hors-ligne)
 
 `ntoseye` est un débogueur type-WinDbg pour **Linux/macOS** : sur Windows il tourne
