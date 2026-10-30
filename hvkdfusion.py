@@ -54,6 +54,11 @@ DEFAULT_NTOSEYE = DOWNLOADS / "ntoseye-master" / "ntoseye-master"
 DEFAULT_MEMPROCFS = DOWNLOADS / "MemProcFS-master" / "MemProcFS-master"
 DEFAULT_DOKANY = DOWNLOADS / "dokany-master" / "dokany-master"
 DEFAULT_LEECHCORE = DOWNLOADS / "LeechCore-master" / "LeechCore-master"
+# MemProcFS + LeechCore + the hvmm device plugin, when shipped next to this script (Fathom releases)
+BUNDLED_MEMPROCFS = HERE / "memprocfs"
+# ntoseye's Linux build (run through WSL) and the signed Dokany installer, same origin
+BUNDLED_NTOSEYE = HERE / "ntoseye" / "ntoseye"
+BUNDLED_DOKANY_SETUP = HERE / "dokany" / "DokanSetup.exe"
 
 # LiveCloudKd.exe action codes (see its README /a option).
 ACTION_LIVE_KD = 0
@@ -104,11 +109,13 @@ def default_config() -> dict:
     }
 
 
-def load_config() -> dict:
-    if not CONFIG_PATH.exists():
-        die(f"No config at {CONFIG_PATH}. Run:  python hvkdfusion.py setup")
+def load_config(required: bool = True) -> dict:
     cfg = default_config()
-    cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+    if CONFIG_PATH.exists():
+        cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+    elif required:
+        die(f"No config at {CONFIG_PATH}. Run:  python hvkdfusion.py setup")
+    # required=False: fall back to defaults so `check` (readiness) runs before setup
     return cfg
 
 
@@ -219,6 +226,26 @@ def ntoseye_prefix(cfg: dict):
     if cfg.get("ntoseye_use_wsl"):
         return ["wsl.exe", "--", path], True
     return [path], False
+
+
+def bundled_ntoseye_wsl() -> str:
+    """WSL path of the ntoseye Linux build shipped next to this script, '' if absent or not runnable."""
+    if not BUNDLED_NTOSEYE.exists() or not _wsl_available():
+        return ""
+    path = to_wsl_path(str(BUNDLED_NTOSEYE))
+    try:
+        r = subprocess.run(["wsl.exe", "--", path, "--version"],
+                           capture_output=True, text=True, timeout=60)
+        return path if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def dokan_hint() -> str:
+    """How to get Dokany: the bundled signed installer if present, else the official release."""
+    if BUNDLED_DOKANY_SETUP.exists():
+        return f"lancer {BUNDLED_DOKANY_SETUP} (administrateur)"
+    return "installer DokanSetup.exe signé : github.com/dokan-dev/dokany/releases"
 
 
 def dokan_installed() -> bool:
@@ -372,6 +399,10 @@ def cmd_setup(args):
         cfg["ntoseye_src_dir"] = args.ntoseye_src
     if not args.no_ntoseye:
         use_wsl, npath = detect_ntoseye()
+        if not npath:
+            bundled = bundled_ntoseye_wsl()
+            if bundled:
+                use_wsl, npath = True, bundled
         if not npath and args.install_ntoseye:
             use_wsl, npath = install_ntoseye_wsl()
         cfg["ntoseye_use_wsl"] = use_wsl
@@ -407,6 +438,8 @@ def cmd_setup(args):
             mp_exe = Path(found)
         elif cfg.get("memprocfs_exe") and Path(cfg["memprocfs_exe"]).exists():
             mp_exe = Path(cfg["memprocfs_exe"])
+        elif locate(BUNDLED_MEMPROCFS, ["MemProcFS.exe"]):
+            mp_exe = locate(BUNDLED_MEMPROCFS, ["MemProcFS.exe"])
         else:  # a prebuilt MemProcFS.exe dropped into the source tree
             mp_exe = locate(Path(cfg["memprocfs_src_dir"]), ["MemProcFS.exe"])
     if mp_exe:
@@ -427,16 +460,18 @@ def cmd_setup(args):
     print(f"[+] LeechCore: {lc_dll if lc_dll else '(leechcore.dll non trouvé)'}")
 
     hvmm_dll = locate(lck, ["leechcore_device_hvmm.dll"])
+    if not hvmm_dll and mp_exe:  # already staged next to MemProcFS.exe (bundled MemProcFS)
+        hvmm_dll = locate(mp_exe.parent, ["leechcore_device_hvmm.dll"])
     cfg["leechcore_hvmm_dll"] = str(hvmm_dll) if hvmm_dll else ""
     print(f"[+] plugin hvmm: {hvmm_dll if hvmm_dll else '(non compilé - mode live hvmm indisponible ; voir README)'}")
 
     cfg["dokan_installed"] = dokan_installed()
-    print(f"[+] Dokany: {'installé' if cfg['dokan_installed'] else 'ABSENT (installer DokanSetup.exe signé)'}")
+    print(f"[+] Dokany: {'installé' if cfg['dokan_installed'] else 'ABSENT (' + dokan_hint() + ')'}")
 
     # Stage the hvmm plugin + engine next to MemProcFS.exe (device 'hvmm').
     if mp_exe and hvmm_dll and not args.no_stage:
         for src in [hvmm_dll, hvlib_dll, hvmm_sys]:
-            if src and src.exists():
+            if src and src.exists() and src.parent.resolve() != mp_exe.parent.resolve():
                 try:
                     shutil.copy2(src, mp_exe.parent / src.name)
                     print(f"[+] staged {src.name} -> {mp_exe.parent}")
@@ -453,7 +488,22 @@ def cmd_config(args):
 
 
 def cmd_list(args):
-    cfg = load_config()
+    as_json = getattr(args, "json", False)
+    cfg = load_config(required=not as_json)
+    if as_json:
+        # Never raise/exit in JSON mode: the GUI reads one JSON object on stdout.
+        try:
+            _, engine, vms = engine_enum(cfg)
+        except SystemExit:
+            # die() already printed the reason to stderr; SystemExit only carries the exit code.
+            print(json.dumps({"error": "énumération impossible (droits admin + VM Hyper-V démarrée requis)", "vms": []}))
+            return
+        except Exception as e:
+            print(json.dumps({"error": str(e), "vms": []}))
+            return
+        print(json.dumps({"vms": [{"id": vid, "name": name} for vid, name in vms]}))
+        engine.cleanup()
+        return
     _, engine, vms = engine_enum(cfg)
     if not vms:
         print("No Hyper-V partitions found.")
@@ -607,8 +657,7 @@ def cmd_mount(args):
             "(github.com/ufrisk/MemProcFS/releases) puis relance "
             "setup --memprocfs-exe <chemin>.")
     if not cfg.get("dokan_installed") and not dokan_installed():
-        print("[!] Dokany absent (dokan2.sys) : le montage échouera. Installe la "
-              "release signée DokanSetup.exe : github.com/dokan-dev/dokany/releases")
+        print(f"[!] Dokany absent (dokan2.sys) : le montage échouera ({dokan_hint()}).")
 
     if args.live:
         if not cfg.get("leechcore_hvmm_dll") and not locate(Path(cfg["memprocfs_dir"] or "."), ["leechcore_device_hvmm.dll"]):
@@ -785,7 +834,8 @@ def _siblings_present(exe: str | None, names: list[str]) -> list[str]:
 
 def cmd_check(args):
     """End-to-end readiness report (static; no DLL load, no admin needed)."""
-    cfg = load_config()
+    as_json = getattr(args, "json", False)
+    cfg = load_config(required=False)
     sysroot = os.environ.get("SystemRoot", r"C:\Windows")
     s32 = Path(sysroot) / "System32"
 
@@ -841,13 +891,14 @@ def cmd_check(args):
     add("Plugin live hvmm", live_ok, live_detail, soft=not live_ok)
     dokan = cfg.get("dokan_installed") or dokan_installed()
     add("Dokany (dokan2.sys)", dokan,
-        "installé" if dokan else "ABSENT - installer DokanSetup.exe signé")
+        "installé" if dokan else "ABSENT - " + dokan_hint())
 
     # --- rendu du tableau ---
-    print("\n=== HvKdFusion : préparation ===")
-    w = max(len(n) for _, n, _ in rows)
-    for mark, name, detail in rows:
-        print(f"  {mark}  {name.ljust(w)}  {detail}")
+    if not as_json:
+        print("\n=== HvKdFusion : préparation ===")
+        w = max(len(n) for _, n, _ in rows)
+        for mark, name, detail in rows:
+            print(f"  {mark}  {name.ljust(w)}  {detail}")
 
     # --- fonctionnalités prêtes ---
     eng = _exists(cfg.get("hvlib_dll")) and _exists(cfg.get("hvlib_py"))
@@ -860,6 +911,20 @@ def cmd_check(args):
         ("wineye REPL (dump, sans Dokany)", _exists(mp) and not mp_miss, "vmm.dll"),
         ("wineye REPL (live hvmm)", live_ok, "vmm.dll + plugin hvmm + admin"),
     ]
+    if as_json:
+        status = {"[OK]": "ok", "[~~]": "soft", "[!!]": "bad"}
+        print(json.dumps({
+            "components": [
+                {"status": status.get(mark, "bad"), "name": name, "detail": detail}
+                for mark, name, detail in rows
+            ],
+            "features": [
+                {"name": name, "ok": bool(ok), "need": need}
+                for name, ok, need in feat
+            ],
+        }))
+        return
+
     print("\n=== Fonctionnalités ===")
     wf = max(len(n) for n, _, _ in feat)
     for name, ok, need in feat:
@@ -1022,8 +1087,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("config", help="print resolved config").set_defaults(func=cmd_config)
     s = sub.add_parser("check", help="tableau de préparation de bout en bout")
     s.add_argument("--deep", action="store_true", help="exécute réellement MemProcFS.exe -h")
+    s.add_argument("--json", action="store_true", help="sortie JSON (pour la GUI)")
     s.set_defaults(func=cmd_check)
-    sub.add_parser("list", help="enumerate Hyper-V VMs").set_defaults(func=cmd_list)
+    s = sub.add_parser("list", help="enumerate Hyper-V VMs")
+    s.add_argument("--json", action="store_true", help="sortie JSON (pour la GUI)")
+    s.set_defaults(func=cmd_list)
     sub.add_parser("menu", help="interactive menu (VM + action)").set_defaults(func=cmd_menu)
 
     s = sub.add_parser("debug", help="attach WinDbg/kd to a VM")

@@ -42,6 +42,21 @@ python hvkdfusion.py setup
 Options utiles : `--windbg-dir <WinDbg installé>` (au lieu du RAR),
 `--no-extract`, `--no-stage`, `--livecloudkd <dir>`, `--windbg-src <dir>`.
 
+### Composants livrés à côté du script
+
+Si ces dossiers se trouvent à côté de `hvkdfusion.py` (c'est le cas dans les
+releases de [Fathom](https://github.com/EGKrb/Fathom/releases)), `setup` les
+utilise sans rien télécharger ni compiler :
+
+| Dossier | Contenu | Utilisation par `setup` |
+|---|---|---|
+| `memprocfs\` | MemProcFS, LeechCore, `leechcore_device_hvmm.dll`, `hvlib.dll`, `hvmm.sys` | MemProcFS, LeechCore et le plugin hvmm sont pris ici quand aucun autre n'est configuré (wineye charge alors ce `vmm.dll`) |
+| `ntoseye\ntoseye` | build Linux x86_64 officiel de ntoseye | lancé via WSL (`/mnt/c/...`) si aucun ntoseye n'est installé, après vérification de `ntoseye --version` |
+| `dokany\DokanSetup.exe` | installateur officiel signé de Dokany | jamais lancé : `setup`, `check` et `mount` indiquent seulement de l'exécuter en administrateur si Dokany manque |
+
+`list` et `check` acceptent aussi `--json` (sortie lue par l'onglet graphique
+HvKdFusion de Fathom) ; `check` fonctionne avant `setup`.
+
 ## Lancement rapide avec élévation UAC
 
 `hvkd.ps1` relance la commande dans une fenêtre **administrateur** (prompt UAC) —
