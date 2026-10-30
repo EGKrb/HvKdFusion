@@ -50,6 +50,8 @@ utilise sans rien télécharger ni compiler :
 
 | Dossier | Contenu | Utilisation par `setup` |
 |---|---|---|
+| `hvlib\` | `hvlib.dll`, `hvlib.py`, `hvmm.sys` (moteur LiveCloudKd) | pris ici quand aucun arbre LiveCloudKd n'est trouvé : l'arbre source n'est plus nécessaire |
+| `windbg64\Debug\LiveCloudKd.exe` | lanceur LiveCloudKd (livré avec WinDbg) | utilisé si l'arbre LiveCloudKd n'en fournit pas |
 | `memprocfs\` | MemProcFS, LeechCore, `leechcore_device_hvmm.dll`, `hvlib.dll`, `hvmm.sys` | MemProcFS, LeechCore et le plugin hvmm sont pris ici quand aucun autre n'est configuré (wineye charge alors ce `vmm.dll`) |
 | `ntoseye\ntoseye` | build Linux x86_64 officiel de ntoseye | lancé via WSL (`/mnt/c/...`) si aucun ntoseye n'est installé, après vérification de `ntoseye --version` |
 | `dokany\DokanSetup.exe` | installateur officiel signé de Dokany | jamais lancé : `setup`, `check` et `mount` indiquent seulement de l'exécuter en administrateur si Dokany manque |
