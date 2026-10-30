@@ -177,7 +177,18 @@ python hvkdfusion.py wineye --dump x.raw -c "ps;lm" --batch --json
 Commandes (façon WinDbg) : `ps`, `!process [pid]`, `.pid <n|-1>`, `lm [pid]`,
 `x <mod>!<sym>`, `db|dw|dd|dq <addr|mod!sym> [L<n>]`, `dt <mod>!<type> [champ]
 [addr]`, `!vad [pid]`, `!handle [pid]`, `s <addr> <len> <hex>`, `info`, `help`,
-`q`. Les adresses acceptent `0x..`, décimal et `module!symbole`.
+`q`. Les adresses sont hexadécimales par défaut comme dans WinDbg (`0x..` aussi,
+`0n` pour le décimal), avec les registres et `module!symbole`.
+
+**Débogueur de dumps** (dumps, images, VM live ; symboles Microsoft téléchargés,
+PDB privés avec `--sympath`) : `!analyze -v` (bugcheck, arguments, contexte fautif
+trap frame / CONTEXT, instruction et driver fautifs, pile), `k`, `!thread`,
+`!process <pid> 7` (piles du noyau jusqu'en mode utilisateur à travers l'appel
+système), `~` / `~<n>`, `.thread`, `.cxr`, `.trap`, `r`, `.frame`, `u`, `uf`, `ln`,
+`dv` (paramètres et variables locales, PDB privé), `.dump /u [pid] <fichier>`
+(minidump user-mode d'un processus). Les dumps noyau `.dmp` s'ouvrent aussi sans
+MemProcFS (`--engine native`, automatique si `vmm.dll` manque). Documentation
+complète : [EGKrb/wineye](https://github.com/EGKrb/wineye).
 
 ### Lever la limite « pas de contrôle d'exécution »
 
@@ -213,7 +224,7 @@ breakpoints/pas-à-pas — pour le run-control, voir `hvkdfusion.py debug`.
 
 | Mode | Commande | Usage |
 |---|---|---|
-| **MCP** | `wineye --dump d.raw --serve mcp` | Serveur MCP (JSON-RPC 2.0 sur stdio) pour un client agent/IA. Outils : `list_processes`, `process_info`, `list_modules`, `list_handles`, `list_vads`, `read_memory`, `resolve_symbol`, `registers`. |
+| **MCP** | `wineye --dump d.raw --serve mcp` | Serveur MCP (JSON-RPC 2.0 sur stdio) pour un client agent/IA. Outils : `list_processes`, `process_info`, `list_modules`, `list_handles`, `list_vads`, `read_memory`, `resolve_symbol`, `registers`, `stack`, `analyze`, `disassemble`. |
 | **gdbserver** | `wineye --dump d.raw --serve gdb [--listen 127.0.0.1:2159]` | GDB Remote Serial Protocol (TCP). Depuis GDB : `target remote 127.0.0.1:2159`, puis lecture mémoire (`x/16xg <addr>`) et, sur VM live, `info registers`. |
 | **DAP** | `wineye --dump d.raw --serve dap [--listen 127.0.0.1:4711]` | Debug Adapter Protocol (stdio, ou TCP avec `--listen`) pour un IDE : `modules`, `readMemory`, `evaluate module!symbole`. |
 
