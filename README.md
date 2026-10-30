@@ -187,7 +187,11 @@ trap frame / CONTEXT, instruction et driver fautifs, pile), `k`, `!thread`,
 système), `~` / `~<n>`, `.thread`, `.cxr`, `.trap`, `r`, `.frame`, `u`, `uf`, `ln`,
 `dv` (paramètres et variables locales, PDB privé), `.dump /u [pid] <fichier>`
 (minidump user-mode d'un processus). Les dumps noyau `.dmp` s'ouvrent aussi sans
-MemProcFS (`--engine native`, automatique si `vmm.dll` manque). Documentation
+MemProcFS (`--engine native`, automatique si `vmm.dll` manque), ainsi que les minidumps
+user-mode (`~` liste les threads, `!analyze` lit l'exception). Sur un dump noyau sans
+pages user, les modules sont reconstruits depuis les VAD et la frame user-mode
+d'entrée de chaque thread reste symbolisée ; `kb` et `dv` montrent les slots de
+paramètres sans PDB privé. Documentation
 complète : [EGKrb/wineye](https://github.com/EGKrb/wineye).
 
 ### Lever la limite « pas de contrôle d'exécution »
