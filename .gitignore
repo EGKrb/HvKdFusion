@@ -10,3 +10,6 @@ plugin_build/LeechCore
 *.raw
 *.dmp
 *.mem
+
+# chemins locaux propres à chaque machine (écrit par `hvkdfusion.py setup`) ; modèle : config.example.json
+config.json
